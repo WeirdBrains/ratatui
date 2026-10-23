@@ -176,7 +176,7 @@ impl Cell {
     /// With the `cell-extensions` feature, this also removes the cell's extension (such as a
     /// hyperlink), because the extension belongs to the content it was attached to. Text drawn
     /// over a link, such as a popup, is therefore not linked. Attach extensions after drawing the
-    /// content, e.g. with [`set_hyperlink`](Self::set_hyperlink).
+    /// content, e.g. with [`Buffer::set_hyperlink`](crate::buffer::Buffer::set_hyperlink).
     pub fn set_symbol(&mut self, symbol: &str) -> &mut Self {
         self.symbol = Some(CompactString::new(symbol));
         #[cfg(feature = "cell-extensions")]
@@ -235,7 +235,9 @@ impl Cell {
 
     /// Sets or removes the hyperlink of the cell, keeping any other extension data.
     ///
-    /// This doesn't add an `id` to the link.
+    /// This doesn't add an `id` to the link. To link several cells as one link, prefer
+    /// [`Buffer::set_hyperlink`](crate::buffer::Buffer::set_hyperlink), which also shares one
+    /// allocation between the cells.
     ///
     /// # Example
     ///
