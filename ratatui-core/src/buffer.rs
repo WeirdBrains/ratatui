@@ -14,4 +14,4 @@ pub use cell::{Cell, CellDiffOption};
 pub use cell_width::CellWidth;
 pub use diff::BufferDiff;
 #[cfg(feature = "cell-extensions")]
-pub use ext::{CellExt, Hyperlink};
+pub use ext::{CellExt, Hyperlink, OpenSequence};

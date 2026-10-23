@@ -52,6 +52,11 @@ use crate::layout::Rect;
 /// let link = Hyperlink::new("https://ratatui.rs").with_id("docs");
 /// assert_eq!(link.uri(), "https://ratatui.rs");
 /// assert_eq!(link.id(), Some("docs"));
+/// assert_eq!(
+///     link.open_sequence().to_string(),
+///     "\x1b]8;id=docs;https://ratatui.rs\x1b\\"
+/// );
+/// assert_eq!(Hyperlink::CLOSE_SEQUENCE, "\x1b]8;;\x1b\\");
 /// ```
 ///
 /// [OSC 8]: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
@@ -65,6 +70,9 @@ pub struct Hyperlink {
 }
 
 impl Hyperlink {
+    /// The escape sequence that closes the current hyperlink: `ESC ] 8 ; ; ESC \`.
+    pub const CLOSE_SEQUENCE: &'static str = "\x1b]8;;\x1b\\";
+
     /// Creates a hyperlink to the given URI, removing any control characters from it.
     ///
     /// The URI is written to the terminal as is (minus control characters). Per the OSC 8
@@ -98,6 +106,16 @@ impl Hyperlink {
     #[must_use]
     pub fn id(&self) -> Option<&str> {
         self.id.as_deref()
+    }
+
+    /// Returns a value that formats as the OSC 8 sequence opening this hyperlink:
+    /// `ESC ] 8 ; [id=<id>] ; <uri> ESC \`.
+    ///
+    /// Backends write this before the first cell of a run of linked cells and
+    /// [`CLOSE_SEQUENCE`](Self::CLOSE_SEQUENCE) after the last one.
+    #[must_use]
+    pub const fn open_sequence(&self) -> OpenSequence<'_> {
+        OpenSequence(self)
     }
 
     /// Returns a copy of this hyperlink with an `id` derived from its URI and `area`, unless it
@@ -174,6 +192,25 @@ struct HyperlinkRepr {
     uri: CompactString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     id: Option<CompactString>,
+}
+
+/// Formats as the OSC 8 sequence that opens a [`Hyperlink`].
+///
+/// Returned by [`Hyperlink::open_sequence`].
+#[derive(Clone, Copy, Debug)]
+pub struct OpenSequence<'a>(&'a Hyperlink);
+
+impl fmt::Display for OpenSequence<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("\x1b]8;")?;
+        if let Some(id) = &self.0.id {
+            f.write_str("id=")?;
+            f.write_str(id)?;
+        }
+        f.write_str(";")?;
+        f.write_str(&self.0.uri)?;
+        f.write_str("\x1b\\")
+    }
 }
 
 /// Out-of-band data attached to a [`Cell`](crate::buffer::Cell).
@@ -332,6 +369,7 @@ impl Hasher for Fnv1a {
 
 #[cfg(test)]
 mod tests {
+    use alloc::string::ToString;
     use alloc::vec::Vec;
     use alloc::{format, vec};
 
@@ -366,6 +404,22 @@ mod tests {
         assert_eq!(link.id(), Some("abc\\d"));
         let link = Hyperlink::new("https://ratatui.rs").with_id(";:\x1b");
         assert_eq!(link.id(), None);
+    }
+
+    #[test]
+    fn hyperlink_sequences() {
+        assert_eq!(
+            link("https://ratatui.rs").open_sequence().to_string(),
+            "\x1b]8;;https://ratatui.rs\x1b\\"
+        );
+        assert_eq!(
+            link("https://ratatui.rs")
+                .with_id("x")
+                .open_sequence()
+                .to_string(),
+            "\x1b]8;id=x;https://ratatui.rs\x1b\\"
+        );
+        assert_eq!(Hyperlink::CLOSE_SEQUENCE, "\x1b]8;;\x1b\\");
     }
 
     #[test]
